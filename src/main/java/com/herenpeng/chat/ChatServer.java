@@ -1,0 +1,635 @@
+package com.herenpeng.chat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+/**
+ * 聊天室服务端
+ *
+ * @author herenpeng
+ * @since 2021-07-09 12:00:00
+ */
+public class ChatServer {
+
+    /**
+     * 刷新配置标识
+     */
+    private static final String CHAT_CFG_RELOAD = "@CHAT_CFG_RELOAD@";
+    /**
+     * 机器人是否开启的标识
+     */
+    private static final String robotCfg = "robot";
+
+    private static final Map<String, Boolean> chatCfg = new ConcurrentHashMap<>();
+
+    static {
+        // 是否开启机器人发送消息，默认不开启
+        chatCfg.put(robotCfg, false);
+    }
+
+    /**
+     * 启动类
+     *
+     * @param args 启动参数
+     * @throws IOException 抛出IO异常
+     */
+    public static void main(String[] args) throws IOException {
+        ServerSocket server = new ServerSocket(12345);
+        new Thread(() -> start(server)).start();
+        for (String cfg : args) {
+            if (chatCfg.containsKey(cfg)) {
+                logInfo("【系统消息】聊天室配置" + cfg + "已开启！");
+                chatCfg.put(cfg, true);
+            }
+        }
+        logInfo("【系统消息】聊天室启动成功了！");
+    }
+
+    /**
+     * 服务开始方法
+     *
+     * @param server 服务对象
+     */
+    private static void start(ServerSocket server) {
+        try {
+            while (true) {
+                // 链接操作
+                ChatSocket chatSocket = connection(server);
+                // 登录操作
+                login(chatSocket);
+            }
+        } catch (Exception e) {
+            logInfo("【系统消息】聊天室发生了异常……");
+            e.printStackTrace();
+        } finally {
+            logInfo("【系统消息】正在关闭聊天室资源……");
+            close(server);
+        }
+    }
+
+
+    /**
+     * 保存所有用户socket的集合
+     */
+    private static final List<ChatSocket> userDB = new LinkedList<>();
+
+    /**
+     * 聊天记录分隔符
+     */
+    private static final String chatSeparate = "---------------------------";
+
+    /**
+     * 给所有的用户发送系统消息
+     *
+     * @param msg 系统消息
+     * @throws IOException 抛出异常
+     */
+    private static void sendSysMsg(String msg) throws IOException {
+        for (ChatSocket chatSocket : userDB) {
+            String sysMsg = getCurrentTime() + "\n" + msg + "\n" + chatSeparate;
+            Socket socket = chatSocket.getSocket();
+            sendMsgToUser(socket, sysMsg);
+        }
+    }
+
+    /**
+     * 发送消息给其他用户
+     *
+     * @param username 消息发送用户名称
+     * @param self     消息发送的用户socket
+     * @param msg      消息
+     * @throws IOException 抛出异常
+     */
+    private static void sendMsgToOtherUser(String username, Socket self, String msg) throws IOException {
+        for (ChatSocket chatSocket : userDB) {
+            Socket socket = chatSocket.getSocket();
+            if (socket.equals(self)) {
+                continue;
+            }
+            String sendMsg = "（" + username + "） " + getCurrentTime() + "\n" + msg + "\n" + chatSeparate;
+            sendMsgToUser(socket, sendMsg);
+        }
+    }
+
+    /**
+     * 给指定的用户发送消息，会自动在消息上下文拼接 消息发送时间，消息分隔符 等等
+     *
+     * @param username 消息发送用户名称
+     * @param socket   消息发送的用户socket
+     * @param msg      消息
+     * @throws IOException 抛出异常
+     */
+    private static void sendMsgToUser(String username, Socket socket, String msg) throws IOException {
+        String sendMsg = "（" + username + "） " + getCurrentTime() + "\n" + msg + "\n" + chatSeparate;
+        sendMsgToUser(socket, sendMsg);
+    }
+
+    /**
+     * 给指定的用户发送消息，文本消息
+     *
+     * @param socket  消息发送的用户socket
+     * @param sendMsg 消息
+     * @throws IOException 抛出异常
+     */
+    private static void sendMsgToUser(Socket socket, String sendMsg) throws IOException {
+        OutputStream os = socket.getOutputStream();
+        os.write(sendMsg.getBytes());
+    }
+
+    /**
+     * 将 socket 从服务器中移开
+     *
+     * @param self socket用户
+     */
+    private static void remove(Socket self) {
+        try {
+            // 先关闭
+            self.close();
+            // 移除
+            userDB.removeIf(chatSocket -> self == chatSocket.getSocket());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 关闭服务
+     *
+     * @param server 服务
+     */
+    private static void close(ServerSocket server) {
+        try {
+            for (ChatSocket chatSocket : userDB) {
+                chatSocket.getSocket().close();
+            }
+            server.close();
+            userDB.clear();
+        } catch (IOException e) {
+            logInfo("【系统消息】关闭聊天室资源发生了异常……");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 链接客户端
+     *
+     * @param server 服务对象
+     * @return ChatSocket 对象
+     * @throws IOException 抛出异常
+     */
+    private static ChatSocket connection(ServerSocket server) throws IOException {
+        Socket socket = server.accept();
+        ChatSocket chatSocket = new ChatSocket(socket);
+        userDB.add(chatSocket);
+        sendMsgToUser(socket, "============================\n" +
+                "1、本聊天室仅为娱乐，请勿在该聊天室内谈论敏感内容，比如涉政，涉黄，账号密码等等！\n" +
+                "2、聊天室内容明文传输，聊天信息泄露本聊天室概不负责！\n" +
+                "3、本聊天室内容后台不做任何存储，聊天信息如果需要请自行保留！\n" +
+                "4、最终解释权归本聊天室所有！\n" +
+                "============================");
+        return chatSocket;
+    }
+
+    /**
+     * 用户登录方法
+     *
+     * @param chatSocket ChatSocket 对象
+     */
+    private static void login(ChatSocket chatSocket) {
+        // 给每个用户一个线程处理
+        new Thread(() -> {
+            Socket socket = chatSocket.getSocket();
+            String username = null;
+            try {
+                InputStream is = socket.getInputStream();
+                byte[] bytes = new byte[1024];
+                int len = readMsg(is, bytes);
+                if (len == -1) {
+                    logout(chatSocket);
+                    return;
+                }
+                username = new String(bytes, 0, len);
+                chatSocket.setUsername(username);
+                // 刷新配置
+                if (CHAT_CFG_RELOAD.equals(username)) {
+                    reloadChatCfg(is, bytes, socket);
+                    return;
+                }
+                loginTip(username, socket);
+                // 机器人欢迎
+                robotWelcome(username);
+                while (true) {
+                    len = readMsg(is, bytes);
+                    if (len == -1) {
+                        logout(chatSocket);
+                        return;
+                    }
+                    String msg = new String(bytes, 0, len);
+                    sendMsgToOtherUser(username, socket, msg);
+                    // 机器人回复消息
+                    randomRobotReply(msg);
+                }
+            } catch (IOException e) {
+                try {
+                    logout(chatSocket);
+                } catch (Exception ex) {
+                    remove(socket);
+                    ex.printStackTrace();
+                }
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    /**
+     * 登出操作
+     *
+     * @param chatSocket chatSocket对象
+     */
+    private static void logout(ChatSocket chatSocket) throws IOException {
+        remove(chatSocket.getSocket());
+        String username = chatSocket.getUsername();
+        if (username != null) {
+            String msg = "【系统消息】" + username + "已退出聊天室";
+            logInfo(msg);
+            sendSysMsg(msg);
+        }
+    }
+
+    /**
+     * 刷新聊天室的配置
+     * <p>在聊天名称中输入{@link ChatServer#CHAT_CFG_RELOAD}</p>
+     * <p>而后输入配置文件，格式为：key1=value2;key2=value2</p>
+     *
+     * @param is    输入流
+     * @param bytes 字节数组
+     * @param self  socket对象
+     */
+    private static void reloadChatCfg(InputStream is, byte[] bytes, Socket self) throws IOException {
+        sendMsgToUser(self, "【系统消息】请输入需要刷新的聊天室配置");
+        int len = readMsg(is, bytes);
+        if (len == -1) {
+            return;
+        }
+        String reloadCfg = new String(bytes, 0, len);
+        String[] cfgList = reloadCfg.split(";");
+        for (String cfgStr : cfgList) {
+            String[] cfg = cfgStr.split("=");
+            if (cfg.length != 2) {
+                continue;
+            }
+            String key = cfg[0];
+            String value = cfg[1];
+            if (chatCfg.containsKey(key)) {
+                if ("true".equals(value)) {
+                    chatCfg.put(key, true);
+                } else {
+                    chatCfg.put(key, false);
+                }
+            }
+        }
+        // 刷新完配置发送通知
+        StringBuilder sb = new StringBuilder();
+        sb.append("【系统消息】聊天室配置已刷新\n");
+        for (Map.Entry<String, Boolean> entry : chatCfg.entrySet()) {
+            sb.append("配置").append(entry.getKey()).append("当前值为：").append(entry.getValue()).append("\n");
+        }
+        sb.append(chatSeparate);
+        logInfo(sb.toString());
+        sendMsgToUser(self, sb.toString());
+        // 移除关闭socket
+        remove(self);
+    }
+
+    /**
+     * 读取消息的方法
+     *
+     * @param is    输入流
+     * @param bytes 字节数组
+     * @return 读取的长度
+     */
+    private static int readMsg(InputStream is, byte[] bytes) {
+        int len;
+        try {
+            len = is.read(bytes);
+        } catch (Exception e) {
+            return -1;
+        }
+        return len;
+    }
+
+    /**
+     * 用户登录时，发送系统提示
+     *
+     * @param username 用户名
+     * @throws IOException 抛出异常
+     */
+    private static void loginTip(String username, Socket socket) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("【系统消息】").append(username).append("已加入聊天室\n");
+        logInfo(sb + "远端主机地址：" + socket.getRemoteSocketAddress());
+        sb.append("当前聊天室成员有：\n");
+        List<String> usernameList = getLoginUsernames();
+        for (int i = 0; i < usernameList.size(); i++) {
+            sb.append(i + 1).append("、").append(usernameList.get(i));
+            if (i < usernameList.size() - 1) {
+                sb.append("\n");
+            }
+        }
+        sendSysMsg(sb.toString());
+    }
+
+    /**
+     * 打印日志
+     *
+     * @param message 日志西信息
+     */
+    private static void logInfo(String message) {
+        System.out.println(getCurrentTime() + " " + message);
+    }
+
+    /**
+     * 随机数对象
+     */
+    private static final Random random = new Random();
+
+    /**
+     * 随机回复消息集合
+     */
+    private static final List<String> replyMsgList = new ArrayList<>();
+
+    static {
+        replyMsgList.add("人生的路上，也许我们不惧伤身，但我们害怕伤心，也许我们不怕问题，但我们害怕丧失信心。黑夜来临，影响我们情绪的不是黑暗，而是孤独；寒风吹来，摧残我们意志的不是冰冷，而是心灵。只要心有所属，生活自有奇迹，人生活得就是一种心情，一种精神。");
+        replyMsgList.add("我们都在 用力的活着\n酸甜苦辣里 醒过也醉过\n也曾倔强脆弱 依然执着\n相信花开以后 会结果");
+        replyMsgList.add("软弱的人被生活折磨，强悍的人折磨生活。");
+        replyMsgList.add("道可道，非常道；名可名，非常名。");
+        replyMsgList.add("知其白，守其黑，为天下式。\n为天下式，常德不忒，复归于无极。");
+        replyMsgList.add("残阳如血,落于江中,将江水也染成了猩红色,而我们的船,正渐渐驶向那团血色之中");
+        replyMsgList.add("一旦希望之灯熄灭，生活就会突然变得黑暗。");
+        replyMsgList.add("阅读使人充实，会谈使人敏捷，写作使人精确。");
+        replyMsgList.add("我直接喷！");
+        replyMsgList.add("不是吧，asir!");
+        replyMsgList.add("桃之夭夭，灼灼其华。之子于归，宜其室家。");
+        replyMsgList.add("一帘清雨，垂下了一汪泪，一份缠绵，揉断了心碎。");
+        replyMsgList.add("用心聆听，深深呼吸，烟花雨，梨花月，寄一缕风的香魂，远离喧嚣。");
+        replyMsgList.add("往事不必再提，人生已多风雨，我只愿风止于秋水，而我止于你。");
+        replyMsgList.add("愿以一朵花的姿态行走世间，看得清世间繁杂却不在心中留下痕迹。花开成景，花落成诗。");
+    }
+
+    private static final List<String> nightReplyMsgList = new ArrayList<>();
+
+    static {
+        nightReplyMsgList.add("早点睡吧，命最重要！");
+        nightReplyMsgList.add("太晚了，明天再聊！");
+        nightReplyMsgList.add("我去洗澡了！");
+        nightReplyMsgList.add("我要去睡觉了，不聊了！");
+    }
+
+    /**
+     * 关键字机器人回复的消息
+     */
+    private static final Map<String, List<String>> keyWordReplyMsgMap = new ConcurrentHashMap<>();
+
+    static {
+        List<String> robot = new ArrayList<>();
+        robot.add("我在！");
+        robot.add("在呢！");
+        robot.add("叫我做什么？");
+        robot.add("别烦我，我现在很烦躁啊！");
+        keyWordReplyMsgMap.put("机器人", robot);
+
+        List<String> alive = new ArrayList<>();
+        alive.add("我也在用力地活着啊！");
+        alive.add("谁不是呢？");
+        alive.add("直接用力啊！");
+        alive.add("我们都在 用力的活着\n酸甜苦辣里 醒过也醉过\n也曾倔强脆弱 依然执着\n相信花开以后 会结果");
+        keyWordReplyMsgMap.put("用力地活着", alive);
+    }
+
+    /**
+     * 机器人列表
+     */
+    private static final List<Robot> robotList = new ArrayList<>();
+
+    static {
+        Robot robot1 = new Robot("机器人·风", replyMsgList, nightReplyMsgList, keyWordReplyMsgMap);
+        robotList.add(robot1);
+
+        Robot robot2 = new Robot("机器人·雪", replyMsgList, nightReplyMsgList, keyWordReplyMsgMap);
+        robotList.add(robot2);
+
+        Robot robot3 = new Robot("机器人·雪", replyMsgList, nightReplyMsgList, keyWordReplyMsgMap);
+        robotList.add(robot3);
+
+        Robot robot4 = new Robot("机器人·月", replyMsgList, nightReplyMsgList, keyWordReplyMsgMap);
+        robotList.add(robot4);
+
+        Robot robot5 = new Robot("机器人·马云", replyMsgList, null, keyWordReplyMsgMap);
+        robotList.add(robot5);
+    }
+
+    /**
+     * 随机选择一个机器人
+     *
+     * @return 机器人
+     */
+    private static Robot randomRobot() {
+        int i = random.nextInt(robotList.size());
+        return robotList.get(i);
+    }
+
+    /**
+     * 机器人欢迎语
+     *
+     * @param username 登入的用户
+     * @throws IOException 抛出异常
+     */
+    private static void robotWelcome(String username) throws IOException {
+        if (!chatCfg.get(robotCfg)) {
+            return;
+        }
+        String welcomeMsg;
+        if (username.contains("何")) {
+            welcomeMsg = "欢迎何总进入聊天室";
+        } else if (username.contains("肖")) {
+            welcomeMsg = "欢迎肖总进入聊天室";
+        } else if (username.contains("池")) {
+            welcomeMsg = "欢迎池总进入聊天室";
+        } else if (username.contains("李")) {
+            welcomeMsg = "欢迎李总进入聊天室";
+        } else {
+            welcomeMsg = "欢迎" + username + "进入聊天室";
+        }
+        sendMsgToOtherUser(randomRobot().getUsername(), null, welcomeMsg);
+    }
+
+
+    /**
+     * 随机机器人回复消息
+     *
+     * @param msg 用户发的消息
+     */
+    private static void randomRobotReply(String msg) throws IOException {
+        if (!chatCfg.get(robotCfg)) {
+            return;
+        }
+        Robot robot = randomRobot();
+        // 随机一条关键字消息回复，如果回复了关键字，就不回复其他消息
+        String sendMsg = robot.randomKeyWordReplyMsg(msg);
+        if (sendMsg == null) {
+            // 五分之一的概率会回复消息
+            int i = random.nextInt(5);
+            if (i == 0) {
+                if (isNight()) {
+                    sendMsg = robot.randomNightReplyMsg();
+                } else {
+                    sendMsg = robot.randomReplyMsg();
+                }
+            }
+        }
+        if (sendMsg != null) {
+            sendMsgToOtherUser(robot.getUsername(), null, sendMsg);
+        }
+    }
+
+    /**
+     * 获取当前在线的所有玩家名称
+     *
+     * @return 当前在线的所有玩家名称
+     */
+    private static List<String> getLoginUsernames() {
+        return userDB.stream().map(ChatSocket::getUsername).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+
+    /**
+     * 判断时间是否是 11:00 - 04:59 晚上
+     *
+     * @return 是返回true，否则返回false
+     */
+    private static boolean isNight() {
+        Calendar calendar = Calendar.getInstance();
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        return hour >= 23 || hour <= 4;
+    }
+
+    /**
+     * 时间格式化对象
+     */
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+
+    /**
+     * 获取当前时间
+     *
+     * @return 当前时间
+     */
+    private static String getCurrentTime() {
+        return sdf.format(new Date());
+    }
+
+    /**
+     * 机器人对象
+     */
+    private static class Robot {
+        // 机器人名称
+        private final String username;
+        // 机器人随机回复
+        private final List<String> replyMsgList;
+        // 机器人晚上回复
+        private final List<String> nightReplyMsgList;
+        // 机器人关键字回复
+        private final Map<String, List<String>> keyWordReplyMsgMap;
+
+        public Robot(String username, List<String> replyMsgList, List<String> nightReplyMsgList, Map<String, List<String>> keyWordReplyMsgMap) {
+            this.username = username;
+            this.replyMsgList = replyMsgList;
+            this.nightReplyMsgList = nightReplyMsgList;
+            this.keyWordReplyMsgMap = keyWordReplyMsgMap;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        /**
+         * 随机一条回复消息
+         *
+         * @return 回复消息，没有消息返回null
+         */
+        public String randomReplyMsg() {
+            if (this.replyMsgList.isEmpty()) {
+                return null;
+            }
+            int i = random.nextInt(this.replyMsgList.size());
+            return this.replyMsgList.get(i);
+        }
+
+        /**
+         * 随机一条晚上回复的消息
+         *
+         * @return 晚上回复的消息，没有消息返回null
+         */
+        public String randomNightReplyMsg() {
+            if (this.nightReplyMsgList.isEmpty()) {
+                return null;
+            }
+            int i = random.nextInt(this.nightReplyMsgList.size());
+            return this.nightReplyMsgList.get(i);
+        }
+
+        /**
+         * 根据消息随机一条回复消息，
+         *
+         * @param msg 消息
+         * @return 没有命中关键字活着没有消息返回null
+         */
+        public String randomKeyWordReplyMsg(String msg) {
+            if (this.keyWordReplyMsgMap.isEmpty()) {
+                return null;
+            }
+            // 触发关键字回复消息
+            for (Map.Entry<String, List<String>> entry : this.keyWordReplyMsgMap.entrySet()) {
+                if (msg.contains(entry.getKey())) {
+                    List<String> msgList = entry.getValue();
+                    int i = random.nextInt(msgList.size());
+                    return msgList.get(i);
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * 封装的 ChatSocket
+     */
+    private static class ChatSocket {
+
+        private final Socket socket;
+
+        private String username;
+
+        public ChatSocket(Socket socket) {
+            this.socket = socket;
+        }
+
+        public Socket getSocket() {
+            return socket;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+    }
+
+}
