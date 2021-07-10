@@ -28,6 +28,8 @@ public class ChatServer {
         ServerSocket server = new ServerSocket(12345);
         new Thread(() -> start(server)).start();
         // 加载配置
+        CHAT_CFG_RELOAD_PASSWORD = UUID.randomUUID().toString();
+        logInfo("【系统消息】聊天室配置加载密钥：" + CHAT_CFG_RELOAD_PASSWORD);
         reloadChatCfg(args.length == 1 ? args[0] : null, null);
         logInfo("【系统消息】聊天室启动成功了！");
     }
@@ -55,9 +57,10 @@ public class ChatServer {
     }
 
     /**
-     * 刷新配置标识
+     * 刷新配置标识密钥
      */
-    private static final String CHAT_CFG_RELOAD = "@CHAT_CFG_RELOAD@";
+    private static String CHAT_CFG_RELOAD_PASSWORD;
+
     /**
      * 机器人是否开启的标识
      */
@@ -241,7 +244,7 @@ public class ChatServer {
                 username = new String(bytes, 0, len);
                 chatSocket.setUsername(username);
                 // 刷新配置
-                if (CHAT_CFG_RELOAD.equals(username)) {
+                if (CHAT_CFG_RELOAD_PASSWORD.equals(username)) {
                     reloadChatCfg(is, bytes, socket);
                     return;
                 }
@@ -288,7 +291,7 @@ public class ChatServer {
 
     /**
      * 刷新聊天室的配置
-     * <p>在聊天名称中输入{@link ChatServer#CHAT_CFG_RELOAD}</p>
+     * <p>在聊天名称中输入{@link ChatServer#CHAT_CFG_RELOAD_PASSWORD}</p>
      * <p>而后输入配置文件，格式为：key1=value2&key2=value2</p>
      *
      * @param is    输入流
