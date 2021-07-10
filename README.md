@@ -123,6 +123,14 @@ chmod +x chat-server.sh
 ./chat-server.sh start robot
 ```
 
+### Error: Could not find or load main class ChatServer
+
+执行脚本启动服务的时候，可能会报一个 `Error: Could not find or load main class ChatServer` 的错误信息。
+
+这是因为在 `ChatServer.java` 文件的最上方有一个包名，如果独立运行 Java 文件，将该包名去掉即可解决上述报错信息。
+
+> 包名：package com.herenpeng.chat;
+
 ## chat 聊天室配置刷新
 
 > chat 聊天室的配置可以在服务端启动时进行指定，比如 robot 配置，开启该配置可以启动服务端机器人。

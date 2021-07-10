@@ -19,22 +19,6 @@ import java.util.stream.Collectors;
 public class ChatServer {
 
     /**
-     * 刷新配置标识
-     */
-    private static final String CHAT_CFG_RELOAD = "@CHAT_CFG_RELOAD@";
-    /**
-     * 机器人是否开启的标识
-     */
-    private static final String robotCfg = "robot";
-
-    private static final Map<String, Boolean> chatCfg = new ConcurrentHashMap<>();
-
-    static {
-        // 是否开启机器人发送消息，默认不开启
-        chatCfg.put(robotCfg, false);
-    }
-
-    /**
      * 启动类
      *
      * @param args 启动参数
@@ -43,12 +27,8 @@ public class ChatServer {
     public static void main(String[] args) throws IOException {
         ServerSocket server = new ServerSocket(12345);
         new Thread(() -> start(server)).start();
-        for (String cfg : args) {
-            if (chatCfg.containsKey(cfg)) {
-                logInfo("【系统消息】聊天室配置" + cfg + "已开启！");
-                chatCfg.put(cfg, true);
-            }
-        }
+        // 加载配置
+        reloadChatCfg(args.length == 1 ? args[0] : null, null);
         logInfo("【系统消息】聊天室启动成功了！");
     }
 
@@ -72,6 +52,49 @@ public class ChatServer {
             logInfo("【系统消息】正在关闭聊天室资源……");
             close(server);
         }
+    }
+
+    /**
+     * 刷新配置标识
+     */
+    private static final String CHAT_CFG_RELOAD = "@CHAT_CFG_RELOAD@";
+    /**
+     * 机器人是否开启的标识
+     */
+    private static final String robotCfgKey = "robot";
+    /**
+     * 机器人概率，值为5表示1/5的概率机器人回复
+     */
+    private static final String robotProCfgKey = "robotPro";
+
+    private static final Map<String, String> chatCfg = new ConcurrentHashMap<>();
+
+    static {
+        // 是否开启机器人发送消息，默认不开启
+        chatCfg.put(robotCfgKey, "false");
+        chatCfg.put(robotProCfgKey, "5");
+    }
+
+    /**
+     * 通过配置 key 获取布尔类型的值
+     *
+     * @param cfgKey 配置key
+     * @return 布尔类型的值
+     */
+    private static boolean getBolByChatCfg(String cfgKey) {
+        String cfgValue = chatCfg.get(cfgKey);
+        return "true".equals(cfgValue);
+    }
+
+    /**
+     * 通过配置 key 获取 int 类型的值
+     *
+     * @param cfgKey 配置key
+     * @return int 类型的值
+     */
+    private static int getIntByChatCfg(String cfgKey) {
+        String cfgValue = chatCfg.get(cfgKey);
+        return Integer.parseInt(isEmpty(cfgValue) ? "0" : cfgValue);
     }
 
 
@@ -256,7 +279,7 @@ public class ChatServer {
     private static void logout(ChatSocket chatSocket) throws IOException {
         remove(chatSocket.getSocket());
         String username = chatSocket.getUsername();
-        if (username != null) {
+        if (isNotEmpty(username)) {
             String msg = "【系统消息】" + username + "已退出聊天室";
             logInfo(msg);
             sendSysMsg(msg);
@@ -266,11 +289,12 @@ public class ChatServer {
     /**
      * 刷新聊天室的配置
      * <p>在聊天名称中输入{@link ChatServer#CHAT_CFG_RELOAD}</p>
-     * <p>而后输入配置文件，格式为：key1=value2;key2=value2</p>
+     * <p>而后输入配置文件，格式为：key1=value2&key2=value2</p>
      *
      * @param is    输入流
      * @param bytes 字节数组
      * @param self  socket对象
+     * @throws IOException 抛出异常
      */
     private static void reloadChatCfg(InputStream is, byte[] bytes, Socket self) throws IOException {
         sendMsgToUser(self, "【系统消息】请输入需要刷新的聊天室配置");
@@ -279,33 +303,44 @@ public class ChatServer {
             return;
         }
         String reloadCfg = new String(bytes, 0, len);
-        String[] cfgList = reloadCfg.split(";");
+        reloadChatCfg(reloadCfg, self);
+    }
+
+    /**
+     * 刷新聊天室的配置
+     *
+     * @param chatCfgStr 配置字符串
+     * @param self       socket对象
+     * @throws IOException 抛出异常
+     */
+    private static void reloadChatCfg(String chatCfgStr, Socket self) throws IOException {
+        if (isEmpty(chatCfgStr)) {
+            return;
+        }
+        String[] cfgList = chatCfgStr.split("&");
         for (String cfgStr : cfgList) {
             String[] cfg = cfgStr.split("=");
             if (cfg.length != 2) {
                 continue;
             }
             String key = cfg[0];
-            String value = cfg[1];
             if (chatCfg.containsKey(key)) {
-                if ("true".equals(value)) {
-                    chatCfg.put(key, true);
-                } else {
-                    chatCfg.put(key, false);
-                }
+                chatCfg.put(key, cfg[1]);
             }
         }
         // 刷新完配置发送通知
         StringBuilder sb = new StringBuilder();
         sb.append("【系统消息】聊天室配置已刷新\n");
-        for (Map.Entry<String, Boolean> entry : chatCfg.entrySet()) {
+        for (Map.Entry<String, String> entry : chatCfg.entrySet()) {
             sb.append("配置").append(entry.getKey()).append("当前值为：").append(entry.getValue()).append("\n");
         }
         sb.append(chatSeparate);
         logInfo(sb.toString());
-        sendMsgToUser(self, sb.toString());
-        // 移除关闭socket
-        remove(self);
+        if (self != null) {
+            sendMsgToUser(self, sb.toString());
+            // 移除关闭socket
+            remove(self);
+        }
     }
 
     /**
@@ -352,7 +387,7 @@ public class ChatServer {
      * @param message 日志西信息
      */
     private static void logInfo(String message) {
-        System.out.println(getCurrentTime() + " " + message);
+        System.out.println(getCurrentDateTime() + " " + message);
     }
 
     /**
@@ -452,7 +487,7 @@ public class ChatServer {
      * @throws IOException 抛出异常
      */
     private static void robotWelcome(String username) throws IOException {
-        if (!chatCfg.get(robotCfg)) {
+        if (!getBolByChatCfg(robotCfgKey)) {
             return;
         }
         String welcomeMsg;
@@ -477,15 +512,17 @@ public class ChatServer {
      * @param msg 用户发的消息
      */
     private static void randomRobotReply(String msg) throws IOException {
-        if (!chatCfg.get(robotCfg)) {
+        if (!getBolByChatCfg(robotCfgKey)) {
             return;
         }
         Robot robot = randomRobot();
         // 随机一条关键字消息回复，如果回复了关键字，就不回复其他消息
         String sendMsg = robot.randomKeyWordReplyMsg(msg);
-        if (sendMsg == null) {
+        // 获取概率，因为默认值为0，所以需要进行一下判断
+        int robotProCfgValue = getIntByChatCfg(ChatServer.robotProCfgKey);
+        if (isEmpty(sendMsg) && robotProCfgValue > 0) {
             // 五分之一的概率会回复消息
-            int i = random.nextInt(5);
+            int i = random.nextInt(robotProCfgValue);
             if (i == 0) {
                 if (isNight()) {
                     sendMsg = robot.randomNightReplyMsg();
@@ -523,15 +560,45 @@ public class ChatServer {
     /**
      * 时间格式化对象
      */
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+    private static final SimpleDateFormat timeSdf = new SimpleDateFormat("HH:mm:ss");
+    private static final SimpleDateFormat DateTimeSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * 获取当前时间
+     * 获取当前的时间的格式化字符串
      *
-     * @return 当前时间
+     * @return 当前的时间的格式化字符串
      */
     private static String getCurrentTime() {
-        return sdf.format(new Date());
+        return timeSdf.format(new Date());
+    }
+
+    /**
+     * 获取当前的日期时间的格式化字符串
+     *
+     * @return 当前的日期时间的格式化字符串
+     */
+    private static String getCurrentDateTime() {
+        return DateTimeSdf.format(new Date());
+    }
+
+    /**
+     * 判断一个字符串是否为空
+     *
+     * @param string 字符串
+     * @return 为空返回true，否则返回false
+     */
+    private static boolean isEmpty(String string) {
+        return string == null || string.length() == 0;
+    }
+
+    /**
+     * 判断一个字符串是否不为空
+     *
+     * @param string 字符串
+     * @return 不为空返回true，否则返回false
+     */
+    private static boolean isNotEmpty(String string) {
+        return !isEmpty(string);
     }
 
     /**
