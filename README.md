@@ -88,8 +88,8 @@ restart() {
 }
 
 find() {
-  PID=$(ps -ef | grep java | grep ChatServer | awk '{print $2}')
-  if [ "${PID}" == "" ]
+	PID=$(ps -ef | grep java | grep ChatServer | awk '{print $2}')
+	if [ "${PID}" == "" ]
 	then
 		echo "服务${CHAT_SERVER}已停止"
 	else
@@ -110,9 +110,9 @@ case ${1} in
 	restart)
 		restart
 		;;
-  find)
-        find
-        ;;
+	find)
+		find
+		;;
 	*)
 		help
 		;;
@@ -154,5 +154,7 @@ chmod +x chat-server.sh
 > 配置使用 `key1=value1&key2=value2` 的格式。
 >
 > 例如需要关闭聊天室机器人，可以使用配置 `robot=false` 进行配置刷新。
-> 如果需要调整聊天室机器人的回复概率，可以使用配置 `robotPro=10`，该配置表示机器人回复的概率为 `1/10`。
-> 上述两个配置需要一起刷新，可以使用 `robot=false&robotPro=10` 进行刷新。
+> 
+>如果需要调整聊天室机器人的回复概率，可以使用配置 `robotPro=10`，该配置表示机器人回复的概率为 `1/10`。
+> 
+>上述两个配置需要一起刷新，可以使用 `robot=false&robotPro=10` 进行刷新。
