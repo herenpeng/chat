@@ -571,7 +571,7 @@ public class ChatServer {
      *
      * @return 当前的时间的格式化字符串
      */
-    private static String getCurrentTime() {
+    private static synchronized String getCurrentTime() {
         return timeSdf.format(new Date());
     }
 
@@ -580,7 +580,7 @@ public class ChatServer {
      *
      * @return 当前的日期时间的格式化字符串
      */
-    private static String getCurrentDateTime() {
+    private static synchronized String getCurrentDateTime() {
         return DateTimeSdf.format(new Date());
     }
 
