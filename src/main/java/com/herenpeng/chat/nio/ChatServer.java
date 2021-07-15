@@ -38,9 +38,9 @@ public class ChatServer {
         CHAT_CFG_RELOAD_PASSWORD = UUID.randomUUID().toString();
         logInfo("【系统消息】聊天室配置加载密钥：" + CHAT_CFG_RELOAD_PASSWORD);
         reloadChatCfg(null, args.length == 1 ? args[0] : null);
-        logInfo("【系统消息】聊天室启动成功了！");
 
-        start(selector);
+        new Thread(() -> start(selector)).start();
+        logInfo("【系统消息】聊天室启动成功了！");
     }
 
     /**
@@ -75,7 +75,6 @@ public class ChatServer {
      * 刷新配置标识密钥
      */
     private static String CHAT_CFG_RELOAD_PASSWORD;
-    private static boolean CHAT_CFG = false;
 
     /**
      * 机器人是否开启的标识
@@ -214,7 +213,7 @@ public class ChatServer {
         ServerSocketChannel server = (ServerSocketChannel) key.channel();
         SocketChannel socket = server.accept();
         socket.configureBlocking(false);
-        socket.register(key.selector(), SelectionKey.OP_READ, ByteBuffer.allocateDirect(1024));
+        socket.register(key.selector(), SelectionKey.OP_READ);
 
         userDB.put(socket, new ChatUser());
         sendMsgToUser(socket, "============================\n" +
@@ -233,15 +232,15 @@ public class ChatServer {
      * @throws IOException
      */
     private static String readMsg(SelectionKey key) throws IOException {
-        StringBuilder sb = new StringBuilder();
+        String msg = null;
         SocketChannel socket = (SocketChannel) key.channel();
-        ByteBuffer buffer = (ByteBuffer) key.attachment();
-        while (socket.read(buffer) != -1) {
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        if (socket.read(buffer) > -1) {
             buffer.flip();
-            sb.append(new String(buffer.array(), buffer.position(), buffer.limit()));
+            msg = new String(buffer.array(), buffer.position(), buffer.limit());
             buffer.clear();
         }
-        return sb.toString();
+        return msg;
     }
 
 
