@@ -40,6 +40,7 @@ public class ChatServer {
         reloadChatCfg(null, args.length == 1 ? args[0] : null);
 
         new Thread(() -> start(selector)).start();
+
         logInfo("【系统消息】聊天室启动成功了！");
     }
 
