@@ -10,7 +10,7 @@ import java.util.Iterator;
 import java.util.Scanner;
 
 /**
- * 聊天室客户端
+ * 聊天室客户端，NIO 实现版本
  *
  * @author herenpeng
  * @since 2021-07-09 12:00:00
@@ -35,7 +35,7 @@ public class ChatClient {
                         if (socket.finishConnect()) {
                             socket.register(selector, SelectionKey.OP_READ);
                         } else {
-                            exit();
+                            exit(socket);
                         }
                     }
                     if (key.isReadable()) {
@@ -50,19 +50,23 @@ public class ChatClient {
 
 
     private static void handleRead(SelectionKey key) {
+        SocketChannel socket = (SocketChannel) key.channel();
         try {
             StringBuilder sb = new StringBuilder();
-            SocketChannel socket = (SocketChannel) key.channel();
             ByteBuffer buffer = ByteBuffer.allocate(1024);
-            while (socket.read(buffer) > 0) {
+            int len;
+            while ((len = socket.read(buffer)) > 0) {
                 buffer.flip();
                 sb.append(new String(buffer.array(), buffer.position(), buffer.limit()));
                 buffer.clear();
             }
             System.out.println(sb);
+            if (len == -1) {
+                exit(socket);
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            exit();
+            exit(socket);
         }
     }
 
@@ -80,14 +84,20 @@ public class ChatClient {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            exit();
+            exit(socket);
         }
     }
 
 
-    private static void exit() {
-        System.out.println("【系统消息】你已退出聊天室");
-        System.exit(0);
+    private static void exit(SocketChannel socket) {
+        try {
+            socket.close();
+        } catch (IOException e) {
+            System.out.println("【系统消息】聊天室发生异常");
+        } finally {
+            System.out.println("【系统消息】你已退出聊天室");
+            System.exit(0);
+        }
     }
 
 }

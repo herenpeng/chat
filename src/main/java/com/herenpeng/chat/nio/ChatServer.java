@@ -237,10 +237,14 @@ public class ChatServer {
         StringBuilder msg = new StringBuilder();
         try {
             ByteBuffer buffer = ByteBuffer.allocate(1024);
-            while (socket.read(buffer) > 0) {
+            int len;
+            while ((len = socket.read(buffer)) > 0) {
                 buffer.flip();
                 msg.append(new String(buffer.array(), buffer.position(), buffer.limit()));
                 buffer.clear();
+            }
+            if (len == -1) {
+                logout(socket);
             }
         } catch (Exception e) {
             logout(socket);
@@ -264,7 +268,7 @@ public class ChatServer {
         // 如果用户名为空，说明没有登录
         if (isEmpty(chatUser.getUsername())) {
             chatUser.setUsername(chatMsg);
-            if (CHAT_CFG_RELOAD_PASSWORD.equals(chatMsg)) {
+            if (CHAT_CFG_RELOAD_PASSWORD.equals(chatUser.getUsername())) {
                 sendMsgToUser(socket, "【系统消息】请输入需要刷新的聊天室配置");
             } else {
                 loginTip(socket, chatMsg);
@@ -272,7 +276,7 @@ public class ChatServer {
                 robotWelcome(chatMsg);
             }
         } else {
-            if (CHAT_CFG_RELOAD_PASSWORD.equals(chatMsg)) {
+            if (CHAT_CFG_RELOAD_PASSWORD.equals(chatUser.getUsername())) {
                 // 刷新配置
                 reloadChatCfg(socket, chatMsg);
             } else {
@@ -292,7 +296,7 @@ public class ChatServer {
         ChatUser chatUser = userDB.remove(socket);
         socket.close();
         String username = chatUser.getUsername();
-        if (isNotEmpty(username)) {
+        if (isNotEmpty(username) && !CHAT_CFG_RELOAD_PASSWORD.equals(username)) {
             String msg = "【系统消息】" + username + "已退出聊天室";
             logInfo(msg);
             sendSysMsg(msg);
