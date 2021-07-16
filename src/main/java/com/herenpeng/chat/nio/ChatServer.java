@@ -34,12 +34,12 @@ public class ChatServer {
         server.configureBlocking(false);
         server.register(selector, SelectionKey.OP_ACCEPT);
 
+        new Thread(() -> start(selector)).start();
+
         // 加载配置
         CHAT_CFG_RELOAD_PASSWORD = UUID.randomUUID().toString();
         logInfo("【系统消息】聊天室配置加载密钥：" + CHAT_CFG_RELOAD_PASSWORD);
         reloadChatCfg(null, args.length == 1 ? args[0] : null);
-
-        new Thread(() -> start(selector)).start();
 
         logInfo("【系统消息】聊天室启动成功了！");
     }
@@ -113,7 +113,7 @@ public class ChatServer {
      */
     private static int getIntByChatCfg(String cfgKey) {
         String cfgValue = chatCfg.get(cfgKey);
-        return Integer.parseInt(isEmpty(cfgValue) ? "0" : cfgValue);
+        return isEmpty(cfgValue) ? 0 : Integer.parseInt(cfgValue);
     }
 
 

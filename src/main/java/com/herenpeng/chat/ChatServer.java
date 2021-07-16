@@ -97,7 +97,7 @@ public class ChatServer {
      */
     private static int getIntByChatCfg(String cfgKey) {
         String cfgValue = chatCfg.get(cfgKey);
-        return Integer.parseInt(isEmpty(cfgValue) ? "0" : cfgValue);
+        return isEmpty(cfgValue) ? 0 : Integer.parseInt(cfgValue);
     }
 
 
