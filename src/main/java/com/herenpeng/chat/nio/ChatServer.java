@@ -232,15 +232,19 @@ public class ChatServer {
      * @throws IOException
      */
     private static String readMsg(SelectionKey key) throws IOException {
-        String msg = null;
         SocketChannel socket = (SocketChannel) key.channel();
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-        if (socket.read(buffer) > -1) {
-            buffer.flip();
-            msg = new String(buffer.array(), buffer.position(), buffer.limit());
-            buffer.clear();
+        StringBuilder msg = new StringBuilder();
+        try {
+            ByteBuffer buffer = ByteBuffer.allocate(1024);
+            while (socket.read(buffer) > 0) {
+                buffer.flip();
+                msg.append(new String(buffer.array(), buffer.position(), buffer.limit()));
+                buffer.clear();
+            }
+        } catch (Exception e) {
+            logout(socket);
         }
-        return msg;
+        return msg.toString();
     }
 
 
@@ -253,6 +257,9 @@ public class ChatServer {
         SocketChannel socket = (SocketChannel) key.channel();
         String chatMsg = readMsg(key);
         ChatUser chatUser = userDB.get(socket);
+        if (chatUser == null) {
+            return;
+        }
         // 如果用户名为空，说明没有登录
         if (isEmpty(chatUser.getUsername())) {
             chatUser.setUsername(chatMsg);

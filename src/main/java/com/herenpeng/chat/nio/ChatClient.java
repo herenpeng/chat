@@ -51,13 +51,15 @@ public class ChatClient {
 
     private static void handleRead(SelectionKey key) {
         try {
+            StringBuilder sb = new StringBuilder();
             SocketChannel socket = (SocketChannel) key.channel();
             ByteBuffer buffer = ByteBuffer.allocate(1024);
-            if (socket.read(buffer) > -1) {
+            while (socket.read(buffer) > 0) {
                 buffer.flip();
-                System.out.println(new String(buffer.array(), buffer.position(), buffer.limit()));
+                sb.append(new String(buffer.array(), buffer.position(), buffer.limit()));
                 buffer.clear();
             }
+            System.out.println(sb);
         } catch (Exception e) {
             e.printStackTrace();
             exit();
