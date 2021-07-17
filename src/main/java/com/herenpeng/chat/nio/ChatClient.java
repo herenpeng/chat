@@ -65,7 +65,6 @@ public class ChatClient {
                 exit(socket);
             }
         } catch (Exception e) {
-            e.printStackTrace();
             exit(socket);
         }
     }
