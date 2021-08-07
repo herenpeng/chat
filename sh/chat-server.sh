@@ -61,9 +61,9 @@ case ${1} in
 	restart)
 		restart
 		;;
-  find)
-    find
-    ;;
+	find)
+		find
+		;;
 	*)
 		help
 		;;
