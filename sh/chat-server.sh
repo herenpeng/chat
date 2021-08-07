@@ -32,7 +32,7 @@ stop() {
 }
 
 restart() {
-  stop
+	stop
 	sleep 3
 	start
 	echo "服务${CHAT_SERVER}已重启"

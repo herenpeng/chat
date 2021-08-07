@@ -36,18 +36,18 @@
 
 1、将 `ChatServer.java` 文件上传至服务器上。
 
-> 如：将 `ChatServer.java` 文件上传至服务器 `/usr/web-project/chat` 目录下。
+> 如：将 `ChatServer.java` 文件上传至服务器 `/usr/app/chat` 目录下。
 
 2、进入 `ChatServer.java` 文件所在的目录，编写部署脚本，并保存。
 
 ```shell script
-cd /usr/web-project/chat
+cd /usr/app/chat
 vim chat-server.sh
 ```
 - chat-server.sh 内容
 
 ```shell script
-CHAT_SERVER_DIR=/usr/web-project/chat
+CHAT_SERVER_DIR=/usr/app/chat
 CHAT_SERVER=ChatServer
 CHAT_LOG_FILE=${CHAT_SERVER_DIR}/chat.log
 # 聊天室启动参数
@@ -81,15 +81,15 @@ stop() {
 }
 
 restart() {
-	start
+    stop
 	sleep 3
-	stop
+	start
 	echo "服务${CHAT_SERVER}已重启"
 }
 
 find() {
-	PID=$(ps -ef | grep java | grep ChatServer | awk '{print $2}')
-	if [ "${PID}" == "" ]
+  PID=$(ps -ef | grep java | grep ChatServer | awk '{print $2}')
+  if [ "${PID}" == "" ]
 	then
 		echo "服务${CHAT_SERVER}已停止"
 	else
@@ -125,7 +125,7 @@ exit 0
 
 ```shell script
 # 增加可执行权限
-cd /usr/web-project/chat
+cd /usr/app/chat
 chmod +x chat-server.sh
 # 启动服务
 ./chat-server.sh start robot
