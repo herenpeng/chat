@@ -1,4 +1,4 @@
-CHAT_SERVER_DIR=/usr/web-project/chat
+CHAT_SERVER_DIR=/usr/app/chat
 CHAT_SERVER=ChatServer
 CHAT_LOG_FILE=${CHAT_SERVER_DIR}/chat.log
 # 聊天室启动参数
