@@ -365,7 +365,7 @@ public class ChatServer {
     /**
      * 打印日志
      *
-     * @param message 日志西信息
+     * @param message 日志信息
      */
     private static void logInfo(String message) {
         System.out.println(getCurrentDateTime() + " " + message);
